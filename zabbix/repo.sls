@@ -22,6 +22,38 @@
 {{ id_prefix }}_apt-transport-https:
   pkg.installed:
     - name: apt-transport-https
+
+{# Debian 13+ uses Sequoia sqv which has stricter GPG key format requirements.
+   Use Zabbix's official release package which properly sets up the repo and key. #}
+{% if salt['grains.get']('osmajorrelease')|int >= 13 %}
+{{ id_prefix }}_release_pkg_download:
+  file.managed:
+    - name: /tmp/zabbix-release.deb
+    - source: https://repo.zabbix.com/zabbix/{{ zabbix.version_repo }}/{{ salt['grains.get']('os')|lower }}/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix.version_repo }}+{{ salt['grains.get']('os')|lower }}{{ salt['grains.get']('osmajorrelease') }}_all.deb
+    - skip_verify: True
+    - require:
+      - pkg: {{ id_prefix }}_apt-transport-https
+
+{{ id_prefix }}_repo:
+  pkg.installed:
+    - sources:
+      - zabbix-release: /tmp/zabbix-release.deb
+    - require:
+      - file: {{ id_prefix }}_release_pkg_download
+
+{% else %}
+{% if not zabbix.repo_aptkey %}
+{{ id_prefix }}_keyrings_dir:
+  file.directory:
+    - name: /etc/apt/keyrings
+    - mode: 755
+{{ id_prefix }}_gpg_key:
+  cmd.run:
+    - name: curl -fsSL https://repo.zabbix.com/zabbix-official-repo.key | gpg --dearmor -o /etc/apt/keyrings/zabbix.gpg
+    - creates: /etc/apt/keyrings/zabbix.gpg
+    - require:
+      - file: {{ id_prefix }}_keyrings_dir
+{% endif %}
 {{ id_prefix }}_repo:
   pkgrepo.managed:
     - name: deb [ arch={{ salt['grains.get']('osarch')|lower }} {{ zabbix.repo_signedby }} ]
@@ -30,6 +62,11 @@
     - key_url: https://repo.zabbix.com/zabbix-official-repo.key
     - clean_file: True
     - aptkey: {{ zabbix.repo_aptkey }}
+{% if not zabbix.repo_aptkey %}
+    - require:
+      - cmd: {{ id_prefix }}_gpg_key
+{% endif %}
+{% endif %}
 
 {%- elif salt['grains.get']('os_family') == 'RedHat' and
          salt['grains.get']('osmajorrelease')|int >= 6 %}

@@ -12,7 +12,11 @@ include:
 # Here we just add a requisite declaration to ensure correct order
 extend:
   zabbix_agent_repo:
-    {% if salt['grains.get']('os_family') in ['Debian', 'Suse'] -%}
+    {% if salt['grains.get']('os_family') == 'Debian' and salt['grains.get']('osmajorrelease')|int >= 13 -%}
+    pkg:
+      - require_in:
+        - pkg: zabbix-agent
+    {% elif salt['grains.get']('os_family') in ['Debian', 'Suse'] -%}
     pkgrepo:
       - require_in:
         - pkg: zabbix-agent
