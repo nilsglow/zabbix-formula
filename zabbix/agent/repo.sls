@@ -11,6 +11,19 @@ include:
 
 # Here we just add a requisite declaration to ensure correct order
 extend:
+  {% if salt['grains.get']('os_family') == 'Debian' and salt['grains.get']('osmajorrelease')|int >= 13 %}
+  # The release .deb adds sources but does not fetch their indexes. Refresh at
+  # agent installation, including retries after an interrupted first apply.
+  zabbix-agent:
+    pkg:
+      - refresh: True
+  {% if salt['grains.get']('os') == 'Ubuntu' and salt['grains.get']('osarch') == 'arm64' %}
+  zabbix_agent_arm64_sources:
+    file:
+      - require_in:
+        - pkg: zabbix-agent
+  {% endif %}
+  {% endif %}
   zabbix_agent_repo:
     {% if salt['grains.get']('os_family') == 'Debian' and salt['grains.get']('osmajorrelease')|int >= 13 -%}
     pkg:

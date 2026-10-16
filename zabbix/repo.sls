@@ -24,12 +24,16 @@
     - name: apt-transport-https
 
 {# Debian 13+ uses Sequoia sqv which has stricter GPG key format requirements.
-   Use Zabbix's official release package which properly sets up the repo and key. #}
+   Use Zabbix's official release package which properly sets up the repo and key.
+   Ubuntu release packages use the full release (24.04), not the major (24). #}
 {% if salt['grains.get']('osmajorrelease')|int >= 13 %}
+{% set release = salt['grains.get']('osrelease') if salt['grains.get']('os') == 'Ubuntu' else salt['grains.get']('osmajorrelease') %}
+{% set ubuntu_arm64 = salt['grains.get']('os') == 'Ubuntu' and salt['grains.get']('osarch') == 'arm64' %}
+{% set repo_os = 'ubuntu-arm64' if ubuntu_arm64 else salt['grains.get']('os')|lower %}
 {{ id_prefix }}_release_pkg_download:
   file.managed:
     - name: /tmp/zabbix-release.deb
-    - source: https://repo.zabbix.com/zabbix/{{ zabbix.version_repo }}/{{ salt['grains.get']('os')|lower }}/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix.version_repo }}+{{ salt['grains.get']('os')|lower }}{{ salt['grains.get']('osmajorrelease') }}_all.deb
+    - source: https://repo.zabbix.com/zabbix/{{ zabbix.version_repo }}/{{ repo_os }}/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix.version_repo }}+{{ salt['grains.get']('os')|lower }}{{ release }}_all.deb
     - skip_verify: True
     - require:
       - pkg: {{ id_prefix }}_apt-transport-https
@@ -40,6 +44,18 @@
       - zabbix-release: /tmp/zabbix-release.deb
     - require:
       - file: {{ id_prefix }}_release_pkg_download
+
+{% if ubuntu_arm64 %}
+# The AMD64 and ARM64 release packages share a name/version. pkg.installed
+# will not replace an already-installed AMD64 configuration with the ARM one.
+{{ id_prefix }}_arm64_sources:
+  file.replace:
+    - name: /etc/apt/sources.list.d/zabbix.sources
+    - pattern: '(https://repo\.zabbix\.com/zabbix/[^/\s]+/ubuntu)(?=\s|$)'
+    - repl: '\1-arm64'
+    - require:
+      - pkg: {{ id_prefix }}_repo
+{% endif %}
 
 {% else %}
 {% if not zabbix.repo_aptkey %}
