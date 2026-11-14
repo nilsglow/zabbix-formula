@@ -17,6 +17,16 @@ extend:
   zabbix-agent:
     pkg:
       - refresh: True
+  zabbix_agent_legacy_list_absent:
+    file:
+      - require_in:
+        - pkg: zabbix-agent
+  {% for key in ['zabbix_official_repo', 'zabbix_official_repo_apr2024', 'zabbix_tools'] %}
+  zabbix_agent_obsolete_{{ key }}_absent:
+    file:
+      - require_in:
+        - pkg: zabbix-agent
+  {% endfor %}
   {% if salt['grains.get']('os') == 'Ubuntu' and salt['grains.get']('osarch') == 'arm64' %}
   zabbix_agent_arm64_sources:
     file:

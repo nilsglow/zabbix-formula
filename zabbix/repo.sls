@@ -45,6 +45,29 @@
     - require:
       - file: {{ id_prefix }}_release_pkg_download
 
+# Current release packages ship zabbix.sources (Signed-By the package's
+# keyring) and drop their former zabbix.list and trusted.gpg.d keys. A
+# zabbix.list no package owns was written by the pkgrepo branch below before a
+# dist-upgrade; next to zabbix.sources, APT rejects the conflicting Signed-By.
+{{ id_prefix }}_legacy_list_absent:
+  file.absent:
+    - name: /etc/apt/sources.list.d/zabbix.list
+    - unless: dpkg -S /etc/apt/sources.list.d/zabbix.list
+    - require:
+      - pkg: {{ id_prefix }}_repo
+
+# Older release packages put their keys into trusted.gpg.d, where they are
+# trusted for every repository. Newer ones no longer ship them, and dpkg keeps
+# them as obsolete conffiles: remove them once they are obsolete.
+{% for key in ['zabbix-official-repo.gpg', 'zabbix-official-repo-apr2024.gpg', 'zabbix-tools.gpg'] %}
+{{ id_prefix }}_obsolete_{{ key|replace('.gpg', '')|replace('-', '_') }}_absent:
+  file.absent:
+    - name: /etc/apt/trusted.gpg.d/{{ key }}
+    - onlyif: dpkg-query -W -f '${Conffiles}\n' zabbix-release | grep -q '^ /etc/apt/trusted.gpg.d/{{ key }} [0-9a-f]* obsolete$'
+    - require:
+      - pkg: {{ id_prefix }}_repo
+{% endfor %}
+
 {% if ubuntu_arm64 %}
 # The AMD64 and ARM64 release packages share a name/version. pkg.installed
 # will not replace an already-installed AMD64 configuration with the ARM one.
