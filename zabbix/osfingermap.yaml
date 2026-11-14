@@ -12,10 +12,10 @@
 ---
 # os: Debian
 Debian-13:
-  repo_signedby: signedby=/etc/apt/keyrings/zabbix.gpg
+  repo_signedby: signed-by=/etc/apt/keyrings/zabbix.gpg
   repo_aptkey: false
 Debian-12:
-  repo_signedby: signedby=/etc/apt/keyrings/zabbix.gpg
+  repo_signedby: signed-by=/etc/apt/keyrings/zabbix.gpg
   repo_aptkey: false
 Debian-11:
   repo_signedby: ""
@@ -32,10 +32,10 @@ Debian-8:
 
 # os: Ubuntu
 Ubuntu-24.04:
-  repo_signedby: signedby=/etc/apt/keyrings/zabbix.gpg
+  repo_signedby: signed-by=/etc/apt/keyrings/zabbix.gpg
   repo_aptkey: false
 Ubuntu-22.04:
-  repo_signedby: signedby=/etc/apt/keyrings/zabbix.gpg
+  repo_signedby: signed-by=/etc/apt/keyrings/zabbix.gpg
   repo_aptkey: false
 Ubuntu-20.04:
   repo_signedby: ""

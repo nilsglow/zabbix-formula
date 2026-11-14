@@ -82,6 +82,28 @@
     - require:
       - cmd: {{ id_prefix }}_gpg_key
 {% endif %}
+
+{% if not zabbix.repo_aptkey and zabbix.repo_signedby %}
+{# Keys imported with apt-key (repo_aptkey) into the legacy keyring are trusted
+   for every repository. Remove them, but only once the list really references
+   the keyring: pkgrepo.managed leaves an existing line without signed-by
+   unchanged when python3-apt is installed (salt-ssh), and APT would then fail
+   with NO_PUBKEY. #}
+{% for fingerprint in ['FBABD5FB20255ECAB22EE194D13D58E479EA5ED4',
+                       'A1848F5352D022B9471D83D0082AB56BA14FE591',
+                       '4C3D6F2CC75F5146754FC374D913219AB5333005',
+                       '84162C39F000750DDAEB816305A7FAEC227618D8'] %}
+{{ id_prefix }}_legacy_apt_key_{{ fingerprint[-8:] }}_absent:
+  cmd.run:
+    - name: apt-key --keyring /etc/apt/trusted.gpg del {{ fingerprint }}
+    - onlyif:
+      - grep -qF '{{ zabbix.repo_signedby }}' /etc/apt/sources.list.d/zabbix.list
+      - test -f /etc/apt/trusted.gpg
+      - gpg --no-default-keyring --keyring /etc/apt/trusted.gpg --list-keys {{ fingerprint }}
+    - require:
+      - pkgrepo: {{ id_prefix }}_repo
+{% endfor %}
+{% endif %}
 {% endif %}
 
 {%- elif salt['grains.get']('os_family') == 'RedHat' and
