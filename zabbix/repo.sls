@@ -56,6 +56,20 @@
     - require:
       - pkg: {{ id_prefix }}_repo
 
+# zabbix-release <= 6.0-4 shipped an unsigned zabbix-agent2-plugins.list that
+# newer packages neither ship nor remove (the plugins are in the main
+# repository now). It relies on the trusted.gpg.d keys below, and Debian 13's
+# sqv rejects its signature even with them, which fails every package list
+# refresh: remove it before the first package state. On a host whose release
+# package is upgraded in this run, it goes in the next run; the keys stay
+# until then (see their unless).
+{{ id_prefix }}_obsolete_agent2_plugins_list_absent:
+  file.absent:
+    - name: /etc/apt/sources.list.d/zabbix-agent2-plugins.list
+    - onlyif: dpkg-query -W -f '${Conffiles}\n' zabbix-release | grep -q '^ /etc/apt/sources.list.d/zabbix-agent2-plugins.list [0-9a-f]* obsolete$'
+    - require_in:
+      - pkg: {{ id_prefix }}_apt-transport-https
+
 # Older release packages put their keys into trusted.gpg.d, where they are
 # trusted for every repository. Newer ones no longer ship them, and dpkg keeps
 # them as obsolete conffiles: remove them once they are obsolete.
@@ -64,8 +78,11 @@
   file.absent:
     - name: /etc/apt/trusted.gpg.d/{{ key }}
     - onlyif: dpkg-query -W -f '${Conffiles}\n' zabbix-release | grep -q '^ /etc/apt/trusted.gpg.d/{{ key }} [0-9a-f]* obsolete$'
+    # Keep the keys while any Zabbix line still relies on them, or APT fails.
+    - unless: grep -hsE '^deb.*repo\.zabbix\.com' /etc/apt/sources.list /etc/apt/sources.list.d/*.list | grep -qv signed-by
     - require:
       - pkg: {{ id_prefix }}_repo
+      - file: {{ id_prefix }}_obsolete_agent2_plugins_list_absent
 {% endfor %}
 
 {% if ubuntu_arm64 %}
