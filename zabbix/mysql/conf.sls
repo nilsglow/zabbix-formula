@@ -14,6 +14,12 @@
 {% set dbuser_host = settings.get('dbuser_host', defaults.dbuser_host) -%}
 {% set dbroot_user = settings.get('dbroot_user') -%}
 {% set dbroot_pass = settings.get('dbroot_pass') -%}
+{#- MariaDB 10.6+ (Debian 12: 10.11) reports utf8 as utf8mb3; name it so the
+    state stays clean. Zabbix 8.0 recommends utf8mb4 (utf8mb4_bin): set
+    character_set and collate in pillar once the tables are converted. #}
+{% set utf8 = 'utf8mb3' if grains.os == 'Debian' and grains.get('osmajorrelease', 0)|int >= 12 else 'utf8' -%}
+{% set character_set = settings.get('character_set', utf8) -%}
+{% set collate = settings.get('collate', utf8 ~ '_bin') -%}
 
 # Install Python to MySQL interface packages.
 {% if settings.get('pkgs', defaults.get('pkgs', False))
@@ -53,8 +59,8 @@ zabbix_db:
     - connection_user: {{ dbroot_user }}
     - connection_pass: {{ dbroot_pass }}
     {%- endif %}
-    - character_set: utf8
-    - collate: utf8_bin
+    - character_set: {{ character_set }}
+    - collate: {{ collate }}
     - require:
       - mysql_packages
   mysql_user.present:
