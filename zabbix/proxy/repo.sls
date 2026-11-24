@@ -9,10 +9,15 @@ include:
 {% include "zabbix/repo.sls" %}
 
 
+{#- Debian 13+, and every release from Zabbix 7.2 on, use the release package
+    (zabbix/repo.sls). #}
+{%- set release_pkg = salt['grains.get']('os_family') == 'Debian' and
+      (salt['grains.get']('osmajorrelease')|int >= 13 or zabbix.version_repo|float >= 7.2) %}
+
 # Here we just add a requisite declaration to ensure correct order
 extend:
   zabbix_proxy_repo:
-    {% if salt['grains.get']('os_family') == 'Debian' and salt['grains.get']('osmajorrelease')|int >= 13 -%}
+    {% if release_pkg -%}
     pkg:
       - require_in:
         - pkg: zabbix-proxy
