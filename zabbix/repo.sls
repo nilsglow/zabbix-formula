@@ -128,6 +128,18 @@
 {% endif %}
 
 {% else %}
+{# A release package of 7.2+ (sources under <version>/release/ or
+   <version>/stable/) is left from a newer version_repo, e.g. after rolling
+   back from 8.0 to 6.0 on Debian 12. Its sources stay enabled next to the
+   zabbix.list below, and its newer epoch would bring the newer major back
+   with the next (unattended) upgrade: purge it first. #}
+{{ id_prefix }}_newer_release_pkg_purged:
+  pkg.purged:
+    - name: zabbix-release
+    - onlyif: grep -qsE 'repo\.zabbix\.com/zabbix/[0-9.]+/(release|stable)/' /etc/apt/sources.list.d/zabbix*.sources
+    - require_in:
+      - pkgrepo: {{ id_prefix }}_repo
+
 {% if not zabbix.repo_aptkey %}
 {{ id_prefix }}_keyrings_dir:
   file.directory:
