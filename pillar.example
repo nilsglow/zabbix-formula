@@ -127,6 +127,12 @@ zabbix-mysql:
   # Optionally specify this for a non-local dbhost
   # dbroot_user: 'root'
   # dbroot_pass: 'rootpass'
+  # Database default character set and collation. Default: utf8mb3/utf8mb3_bin
+  # on Debian 12+ (MariaDB 10.6+ names utf8 so), utf8/utf8_bin elsewhere. The
+  # state changes only the database default; convert the tables with Zabbix's
+  # utf8mb4_convert.sql first.
+  # character_set: utf8mb4
+  # collate: utf8mb4_bin
 
 zabbix-frontend:
   dbtype: MYSQL

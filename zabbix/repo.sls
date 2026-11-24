@@ -25,15 +25,21 @@
 
 {# Debian 13+ uses Sequoia sqv which has stricter GPG key format requirements.
    Use Zabbix's official release package which properly sets up the repo and key.
-   Ubuntu release packages use the full release (24.04), not the major (24). #}
-{% if salt['grains.get']('osmajorrelease')|int >= 13 %}
+   Ubuntu release packages use the full release (24.04), not the major (24).
+   From 7.2 on, Zabbix publishes the release packages under <version>/release/
+   (packages under <version>/stable/, one repository for all architectures)
+   and signs with a new key; only the release package knows both, so use it
+   on every release. #}
+{% set release_layout = zabbix.version_repo|float >= 7.2 %}
+{% if salt['grains.get']('osmajorrelease')|int >= 13 or release_layout %}
 {% set release = salt['grains.get']('osrelease') if salt['grains.get']('os') == 'Ubuntu' else salt['grains.get']('osmajorrelease') %}
-{% set ubuntu_arm64 = salt['grains.get']('os') == 'Ubuntu' and salt['grains.get']('osarch') == 'arm64' %}
+{% set ubuntu_arm64 = salt['grains.get']('os') == 'Ubuntu' and salt['grains.get']('osarch') == 'arm64' and not release_layout %}
 {% set repo_os = 'ubuntu-arm64' if ubuntu_arm64 else salt['grains.get']('os')|lower %}
+{% set repo_dir = zabbix.version_repo ~ ('/release/' if release_layout else '/') ~ repo_os %}
 {{ id_prefix }}_release_pkg_download:
   file.managed:
     - name: /tmp/zabbix-release.deb
-    - source: https://repo.zabbix.com/zabbix/{{ zabbix.version_repo }}/{{ repo_os }}/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix.version_repo }}+{{ salt['grains.get']('os')|lower }}{{ release }}_all.deb
+    - source: https://repo.zabbix.com/zabbix/{{ repo_dir }}/pool/main/z/zabbix-release/zabbix-release_latest_{{ zabbix.version_repo }}+{{ salt['grains.get']('os')|lower }}{{ release }}_all.deb
     - skip_verify: True
     - require:
       - pkg: {{ id_prefix }}_apt-transport-https
@@ -55,6 +61,29 @@
     - unless: dpkg -S /etc/apt/sources.list.d/zabbix.list
     - require:
       - pkg: {{ id_prefix }}_repo
+
+# The sources are conffiles: an upgrade of the release package (e.g. 6.0 to
+# 8.0) keeps a locally modified one, such as the ARM64 rewrite below, and
+# leaves the package's version as .dpkg-dist (Salt's --force-confold) or
+# .dpkg-new. Take the package's version.
+{{ id_prefix }}_release_sources_dpkg_new:
+  cmd.run:
+    - name: |
+        for f in /etc/apt/sources.list.d/zabbix*.sources.dpkg-dist /etc/apt/sources.list.d/zabbix*.sources.dpkg-new; do
+          if [ -e "$f" ]; then mv -f "$f" "${f%.dpkg-*}"; fi
+        done
+    - onlyif: ls /etc/apt/sources.list.d/zabbix*.sources.dpkg-dist /etc/apt/sources.list.d/zabbix*.sources.dpkg-new 2>/dev/null | grep -q .
+    - require:
+      - pkg: {{ id_prefix }}_repo
+
+# The key the pkgrepo branch below fetched for that zabbix.list; the release
+# package brings its own keyring.
+{{ id_prefix }}_legacy_keyring_absent:
+  file.absent:
+    - name: /etc/apt/keyrings/zabbix.gpg
+    - unless: grep -rqsF /etc/apt/keyrings/zabbix.gpg /etc/apt/sources.list /etc/apt/sources.list.d/
+    - require:
+      - file: {{ id_prefix }}_legacy_list_absent
 
 # zabbix-release <= 6.0-4 shipped an unsigned zabbix-agent2-plugins.list that
 # newer packages neither ship nor remove (the plugins are in the main
@@ -95,6 +124,7 @@
     - repl: '\1-arm64'
     - require:
       - pkg: {{ id_prefix }}_repo
+      - cmd: {{ id_prefix }}_release_sources_dpkg_new
 {% endif %}
 
 {% else %}
